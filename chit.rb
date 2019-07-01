@@ -11,24 +11,34 @@ module Chit
   module_function
 
   # スレッド指定文字列：
-  #    [カテゴリー]/[掲示板番号]/[スレッドパターン]:[オプション]
+  #    [プロトコル]://[ホスト]/[掲示板]/[スレッドパターン]:[オプション]
   #
-  # 例えば game/1234/ABC*:postable,oldest で game/1234 掲示板の スレッド
-  # タイトルが ABC で始まるスレッドの内、スレッドストップになっておらず
-  # 一番古くから存在するものを選択する。
+  # 例えば shitaraba:///game/1234/ABC*:postable,oldest で game/1234 掲
+  # 示板の スレッドタイトルが ABC で始まるスレッドの内、スレッドストッ
+  # プになっておらず一番古くから存在するものを選択する。
   #
-  # [スレッドパターン]はワイルドカード ? * を含むことのできるスレッドタイトルか、
-  # あるいは、スレッド番号（スレッドが立てられた Unix Time である整数）。
+  # [スレッドパターン]はワイルドカード ? * を含むことのできるスレッド
+  # タイトルか、あるいは、スレッド番号（スレッドが立てられた Unix Time
+  # である整数）。
   #
   # [オプション]は、以下の単語をコンマ区切りで並べたもの。
   # * oldest (一番古くに立てられたスレッドを選択)
   # * postable (スレッドストップになっていないスレッドを選択)
 
+  def create_board(spec)
+    case spec[:protocol]
+    when :shitaraba
+      Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
+    when :nichan
+      Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
+    end
+  end
+
   # スレッド指定文字列 specstr に合致する Thread のリストを返す。
   def search_threads(specstr)
     spec  = parse_thread_spec(specstr)
-    board = Bbs::Shitaraba::Board.send(:new, spec[:category], spec[:board_num])
-    ts    = board.threads.select!{ |t| t.title =~ spec[:thread_regexp] }
+    board = create_board(spec)
+    ts    = board.threads.select{ |t| t.title =~ spec[:thread_regexp] }
 
     if spec[:options].delete(:postable)
       ts.select! { |t| t.last < 1000 }
@@ -71,19 +81,50 @@ module Chit
   # :thread_regexp (上記パターン文字列と同等な Regexp), :options (キーワー
   # ド :postable, :oldest の０個以上を含むリスト)。
   def parse_thread_spec(str)
+    if str =~ /^shitaraba:\/\//
+      parse_shitaraba_thread_spec($')
+    elsif str =~ /^nichan:\/\//
+      parse_nichan_thread_spec($')
+    else
+      fail 'invalid spec'
+    end
+  end
+
+  def parse_nichan_thread_spec(str)
     options = []
     if str =~ /(.*):(.*)/
       str = $1
       options = $2.split(',').map(&:to_sym)
     end
-    words = str.split('/')
-    fail "invalid thread spec #{str.inspect}" unless words.size==3
-    fail "invalid board id #{words[1].inspect}" unless words[1] =~ /\A\d+\z/
+
+    host, board, thread_pattern = str.split('/',3)
     {
-      category: words[0],
-      board_num: words[1],
-      thread_pattern: words[2],
-      thread_regexp: glob_to_regexp(words[2]),
+      protocol: :shitaraba,
+      host: host,
+      board: board,
+      thread_pattern: thread_pattern,
+      thread_regexp: glob_to_regexp(thread_pattern),
+      options: options,
+    }
+  end
+
+  def parse_shitaraba_thread_spec(str)
+    options = []
+    if str =~ /(.*):(.*)/
+      str = $1
+      options = $2.split(',').map(&:to_sym)
+    end
+
+    words = str.split('/')
+    host, = words
+    fail "invalid thread spec #{str.inspect}" unless words.size==4
+    fail "invalid board id #{words[1].inspect}" unless words[2] =~ /\A\d+\z/
+    {
+      protocol: :nichan,
+      host: host.empty? ? "jbbs.shitaraba.net" : host,
+      board: words[1..2].join('/'),
+      thread_pattern: words[3],
+      thread_regexp: glob_to_regexp(words[3]),
       options: options
     }
   end
@@ -105,7 +146,7 @@ module Chit
         STDERR.puts "No such thread"
         exit 1
       end
-      [first_thread, first_thread.last+1]
+      [first_thread, 1]
     end
 
     # 以下のループはユーザーから行を受け取り、スレッドに投稿する。投稿し
@@ -120,22 +161,6 @@ module Chit
         t, start_no = move_to_new_thread.()
       end
 
-      body = Readline.readline("#{t.title}> ", true)
-      break if body.nil? # EOF
-
-      # 投稿。
-      unless body.empty?
-        begin
-          post_message(t.board.category,
-                       t.board.board_num,
-                       t.id,
-                       name, mail, body)
-        rescue RateLimitException => e
-          sleep e.cooldown
-          retry
-        end
-      end
-
       # 読み込み。
       begin
         t.posts(start_no .. Float::INFINITY).each do |post|
@@ -147,6 +172,22 @@ module Chit
         STDERR.print "Error: "
         STDERR.puts e.message
       end
+
+      body = Readline.readline("#{t.title}> ", true)
+      break if body.nil? # EOF
+
+      # 投稿。
+      unless body.empty?
+        begin
+          post_message(t.board,
+                       t.id,
+                       name, mail, body)
+        rescue RateLimitException => e
+          sleep e.cooldown
+          retry
+        end
+      end
+
     end
   end # main
 

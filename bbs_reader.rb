@@ -309,6 +309,8 @@ module Bbs
   module Nichan
     # 2ちゃん板
     class Board < Bbs::BoardBase
+      attr_reader :hostname, :port, :name
+
       class << self
         def from_url(url)
           uri = URI.parse(url)
