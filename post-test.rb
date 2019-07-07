@@ -3,7 +3,7 @@ require 'net/http'
 
 def to_euc(utf8)
   # TODO: EUCで表現できないコードはエスケープしたい。
-  utf8.encode('EUC-JP')
+  utf8.gsub(/～/, "～" => "〜").encode('EUC-JP')
 end
 
 def euc_to_utf8(str)
