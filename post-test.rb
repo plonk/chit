@@ -11,7 +11,7 @@ def euc_to_utf8(str)
 end
 
 def to_sjis(utf8)
-  utf8.encode('Shift_JIS')
+  utf8.gsub(/～/, "～" => "〜").encode('Shift_JIS')
 end
 
 def sjis_to_utf8(str)
