@@ -84,15 +84,15 @@ end
 
 def post_message_shitaraba(board, thread, name, mail, body)
   cat, board_num = board.category, board.board_num
-  uri = URI("https://jbbs.shitaraba.net/bbs/write.cgi/#{cat}/#{board}/#{thread}/")
-  referer = "https://jbbs.shitaraba.net/bbs/read.cgi/#{cat}/#{board}/#{thread}/"
+  uri = URI("https://jbbs.shitaraba.net/bbs/write.cgi/#{cat}/#{board_num}/#{thread}/")
+  referer = "https://jbbs.shitaraba.net/bbs/read.cgi/#{cat}/#{board_num}/#{thread}/"
 
   Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
     req = Net::HTTP::Post.new(uri)
     req['User-Agent'] = "Chit/0.0.1"
     req['Referer'] = referer
     req.set_form_data(
-      "BBS" => board.to_s,
+      "BBS" => board_num.to_s,
       "KEY" => thread.to_s,
       "DIR" => cat,
       "NAME"=> to_euc(name),
