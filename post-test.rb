@@ -92,7 +92,7 @@ def post_message_shitaraba(board, thread, name, mail, body)
     req['User-Agent'] = "Chit/0.0.1"
     req['Referer'] = referer
     req.set_form_data(
-      "BBS" => board.to_s,
+      "BBS" => board_num.to_s,
       "KEY" => thread.to_s,
       "DIR" => cat,
       "NAME"=> to_euc(name),
