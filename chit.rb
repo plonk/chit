@@ -24,6 +24,7 @@ module Chit
   # [オプション]は、以下の単語をコンマ区切りで並べたもの。
   # * oldest (一番古くに立てられたスレッドを選択)
   # * postable (スレッドストップになっていないスレッドを選択)
+  # * multilines (番号:名前:日付:ID 本文と複数行で表示)
 
   def create_board(spec)
     case spec[:protocol]
@@ -46,6 +47,10 @@ module Chit
 
     if spec[:options].delete(:oldest)
       ts = [ts.min_by(&:id)]
+    end
+
+    if spec[:options].delete(:multilines)
+      Bbs.set_multilines(true)
     end
 
     return ts
@@ -164,7 +169,7 @@ module Chit
       # 読み込み。
       begin
         t.posts(start_no .. Float::INFINITY).each do |post|
-          puts render_post_chat(post)
+          puts Bbs.get_multilines ? render_post(post) : render_post_chat(post)
           start_no += 1
         end
       rescue => e

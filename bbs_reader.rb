@@ -3,6 +3,17 @@ require 'uri'
 require 'pp' if $DEBUG
 
 module Bbs
+  @multilines = false
+  attr_reader :multilines
+
+  class << self
+    def get_multilines
+      @multilines
+    end
+    def set_multilines(val)
+      @multilines = val
+    end
+  end
 
   class NotFoundError < StandardError
   end
@@ -14,13 +25,14 @@ module Bbs
       end
     end
 
-    attr_reader :no, :name, :mail, :body, :date
+    attr_reader :no, :name, :mail, :body, :date, :id
 
-    def initialize(no, name, mail, date, body)
+    def initialize(no, name, mail, date, id, body)
       @no = no.to_i
       @name = name
       @mail = mail
       @date = date
+      @id = id
       @body = body
     end
 
@@ -30,7 +42,8 @@ module Bbs
     # end
 
     def to_s
-      [no, name, mail, date, body].join('<>')
+      #[no, name, mail, date, body].join('<>')
+      [no, name, mail, (id.nil? ? date : [date, id].join(' ID:')), body].join('<>')
     end
 
   end
@@ -290,8 +303,9 @@ module Bbs
       private
 
       def create_post(line)
-        no, name, mail, date, body, = line.split('<>', 6)
-        Post.new(no, name, mail, date, body)
+        no, name, mail, date, body, _, id = line.split('<>', 7)
+        # data, id = data.split(' ID:')
+        Post.new(no, name, mail, date, id, body)
       end
 
       def dat_for_range(range)
@@ -377,7 +391,8 @@ module Bbs
           next unless range.include?(res_no)
 
           name, mail, date, body, title = line.chomp.split('<>', 5)
-          post = Post.new(res_no.to_s, name, mail, date, body)
+          date, id = date.split(' ID:')
+          post = Post.new(res_no.to_s, name, mail, date, id, body)
           ary << post
           @last = [post.no, last].max
         end

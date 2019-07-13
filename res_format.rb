@@ -5,12 +5,20 @@ def render_name(name, email)
   if email.empty?
     name
   else
-    name
+    [name.bold, '(', email.light_black, ')'].join()
   end
 end
 
 def render_resno(no)
   no.to_s
+end
+
+def render_dateid(date, id)
+  if id.nil?
+    date
+  else
+    [date, id].join(' ID:')
+  end
 end
 
 def indent(n, text)
@@ -23,7 +31,7 @@ def render_body(body)
 end
 
 def render_post(post)
-  "#{render_resno post.no}：#{render_name post.name, post.mail}：#{post.date}\n" \
+  "#{render_resno(post.no).cyan.bold}：#{render_name(post.name, post.mail)}：#{render_dateid(post.date, post.id)}\n" \
   "#{render_body post.body}"
 end
 
