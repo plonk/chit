@@ -2,12 +2,13 @@
 
 # Chit － したらば掲示板をチャット風に使う対話的インターフェース
 
-require 'readline'
 require_relative 'bbs_reader'
 require_relative 'post-test'
 require_relative 'res_format'
+require_relative 'readline-ffi'
 
 module Chit
+  extend ReadlineFFI
   module_function
 
   # スレッド指定文字列：
@@ -149,46 +150,78 @@ module Chit
       [first_thread, 1]
     end
 
+    last_fetch = nil
+    t = nil
+    running = true
+    line_handler = proc do |body|
+      body&.force_encoding("UTF-8")
+      if body.nil?
+        ReadlineFFI.rl_callback_handler_remove
+        running = false
+      else
+        if body.empty?
+          last_fetch = nil # すぐにレスを読み込みたい。
+        else
+          begin
+            post_message(t.board,
+                         t.id,
+                         name, mail, body)
+            last_fetch = nil # すぐに自分のレスを読み込みたい。
+          rescue RateLimitException => e
+            sleep e.cooldown
+            retry
+          end
+        end
+      end
+    end
+
     # 以下のループはユーザーから行を受け取り、スレッドに投稿する。投稿し
     # たあとは新レスの取得と表示を行う（これにはユーザーが投稿した内容が
     # 含まれるはずである）。ユーザーがただEnterを押した場合は、新レスの
     # 取得・表示のみを行う。スレッドストップにあたっては、スレッドの検索
     # をやりなおし、該当スレッドがあればそれを投稿先として選択する。
     t, start_no = move_to_new_thread.()
-    while true
+
+    # ラインハンドラーをインストール。プロンプトが表示される。
+    rl_callback_handler_install("#{t.title}> ", line_handler)
+
+    while running
       if start_no > 1000
         STDERR.puts "Thread full"
         t, start_no = move_to_new_thread.()
+        rl_set_prompt("#{t.tile}> ")
       end
 
       # 読み込み。
-      begin
-        t.posts(start_no .. Float::INFINITY).each do |post|
-          puts render_post_chat(post)
-          start_no += 1
-        end
-      rescue => e
-        # レス取得エラー
-        STDERR.print "Error: "
-        STDERR.puts e.message
-      end
-
-      body = Readline.readline("#{t.title}> ", true)
-      break if body.nil? # EOF
-
-      # 投稿。
-      unless body.empty?
+      if last_fetch.nil? || Time.now - last_fetch >= 7.0
         begin
-          post_message(t.board,
-                       t.id,
-                       name, mail, body)
-        rescue RateLimitException => e
-          sleep e.cooldown
-          retry
+          posts = t.posts(start_no .. Float::INFINITY)
+          if posts.any?
+            rl_clear_visible_line
+            ReadlineFFI::CFFI.fflush(nil)
+
+            posts.each do |post|
+              puts render_post_chat(post)
+              start_no += 1
+            end
+
+            rl_forced_update_display
+          end
+          last_fetch = Time.now
+        rescue => e
+          # レス取得エラー
+          STDERR.print "Error: "
+          STDERR.puts e.message
         end
       end
 
+      r = IO.select([STDIN], [], [], 7.0)
+      if r
+        rl_callback_read_char
+      end
     end
+  ensure
+    rl_deprep_terminal
   end # main
 
 end # module Chit

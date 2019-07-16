@@ -46,7 +46,7 @@ def post_message_nichan(board, thread, name, mail, body)
 
   Net::HTTP.start(uri.host, uri.port) do |http|
     req = Net::HTTP::Post.new(uri)
-    req['User-Agent'] = "Chit/0.0.1"
+    req['User-Agent'] = "Chit/0.1.0"
     req['Referer'] = referer
     req.set_form_data(
       "FROM"=>to_sjis(name),
@@ -89,7 +89,7 @@ def post_message_shitaraba(board, thread, name, mail, body)
 
   Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
     req = Net::HTTP::Post.new(uri)
-    req['User-Agent'] = "Chit/0.0.1"
+    req['User-Agent'] = "Chit/0.1.0"
     req['Referer'] = referer
     req.set_form_data(
       "BBS" => board_num.to_s,
