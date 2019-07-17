@@ -2,6 +2,7 @@
 
 # Chit － したらば掲示板をチャット風に使う対話的インターフェース
 
+require 'fileutils'
 require_relative 'bbs_reader'
 require_relative 'post-test'
 require_relative 'res_format'
@@ -130,11 +131,15 @@ module Chit
     }
   end
 
+  HISTORY_FILE = File.join(ENV['HOME'], ".config/chit/history")
+
   def main
     unless ARGV.size == 1
       STDERR.puts "Usage: chit THREAD_SPEC"
       exit 1
     end
+
+    read_history(HISTORY_FILE)
 
     name = ""
     mail = "sage"
@@ -162,6 +167,7 @@ module Chit
         if body.empty?
           last_fetch = nil # すぐにレスを読み込みたい。
         else
+          add_history(body)
           begin
             post_message(t.board,
                          t.id,
@@ -221,6 +227,10 @@ module Chit
       end
     end
   ensure
+    FileUtils.mkdir_p(File.dirname(HISTORY_FILE))
+    if (errno = write_history(HISTORY_FILE)) != 0
+      STDERR.puts("write_histry: #{ReadlineFFI::CFFI.strerror(errno)}")
+    end
     rl_deprep_terminal
   end # main
 

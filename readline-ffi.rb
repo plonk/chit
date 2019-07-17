@@ -13,10 +13,14 @@ module ReadlineFFI
   attach_function :rl_set_prompt, [:string], :int
   attach_function :rl_prep_terminal, [], :void
   attach_function :rl_deprep_terminal, [], :void
+  attach_function :add_history, [:string], :void
+  attach_function :write_history, [:string], :int
+  attach_function :read_history, [:string], :int
 
   module CFFI
     extend FFI::Library
     ffi_lib 'c'
     attach_function :fflush, [:pointer], :int
+    attach_function :strerror, [:int], :string
   end
 end
