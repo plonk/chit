@@ -21,6 +21,10 @@ def render_dateid(date, id)
   end
 end
 
+def render_date2time(date)
+  date.match(/\d{2}:\d{2}:\d{2}/)
+end
+
 def indent(n, text)
   text.each_line.map { |line| " "*n + line }.join
 end
@@ -41,4 +45,8 @@ end
 
 def render_post_chat(post)
   "#{render_resno(post.no).cyan.bold} : #{render_body_inline post.body}"
+end
+
+def render_post_chat_time(post)
+  "#{render_resno(post.no).cyan.bold} <#{render_date2time(post.date)}> : #{render_body_inline post.body}"
 end

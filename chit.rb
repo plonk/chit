@@ -43,15 +43,19 @@ module Chit
     board = create_board(spec)
     ts    = board.threads.select{ |t| t.title =~ spec[:thread_regexp] }
 
-    if spec[:options].delete(:postable)
+    if spec[:options].delete(:postable) or spec[:options].delete(:P)
       ts.select! { |t| t.last < 1000 }
     end
 
-    if spec[:options].delete(:oldest)
+    if spec[:options].delete(:oldest) or spec[:options].delete(:O)
       ts = [ts.min_by(&:id)]
     end
 
-    if spec[:options].delete(:multilines)
+    if spec[:options].delete(:multilines) or spec[:options].delete(:M)
+      Bbs.set_multilines(true)
+    end
+    
+    if spec[:options].delete(:showtime) or spec[:options].delete(:T)
       Bbs.set_multilines(true)
     end
 
@@ -204,22 +208,7 @@ module Chit
       end
 
       # 読み込み。
-      begin
-        t.posts(start_no .. Float::INFINITY).each do |post|
-          puts Bbs.get_multilines ? render_post(post) : render_post_chat(post)
-          start_no += 1
-        end
-      rescue => e
-        # レス取得エラー
-        STDERR.print "Error: "
-        STDERR.puts e.message
-      end
-
-      body = Readline.readline("#{t.title}> ", true)
-      break if body.nil? # EOF
-
-      # 投稿。
-      unless body.empty?
+      if last_fetch.nil? || Time.now - last_fetch >= 7.0
         begin
           posts = t.posts(start_no .. Float::INFINITY)
           if posts.any?
@@ -227,7 +216,8 @@ module Chit
             ReadlineFFI::CFFI.fflush(nil)
 
             posts.each do |post|
-              puts render_post_chat(post)
+              #puts render_post_chat(post)
+              puts Bbs.get_multilines ? render_post(post) : render_post_chat_time(post)
               start_no += 1
             end
 
