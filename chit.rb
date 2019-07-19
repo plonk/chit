@@ -2,10 +2,11 @@
 
 # Chit － したらば掲示板をチャット風に使う対話的インターフェース
 
-require 'readline'
+require 'fileutils'
 require_relative 'bbs_reader'
 require_relative 'post-test'
 require_relative 'res_format'
+require_relative 'readline-ffi'
 
 module Chit
   module_function
