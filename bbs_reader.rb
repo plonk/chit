@@ -4,14 +4,21 @@ require 'pp' if $DEBUG
 
 module Bbs
   @multilines = false
-  attr_reader :multilines
+  @inlinetime = false
+  attr_reader :multilines, :inlinetime
 
   class << self
-    def get_multilines
+    def get_multilines 
       @multilines
     end
     def set_multilines(val)
       @multilines = val
+    end
+    def get_inlinetime
+      @inlinetime
+    end
+    def set_inlinetime(val)
+      @inlinetime = val
     end
   end
 

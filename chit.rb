@@ -56,7 +56,7 @@ module Chit
     end
     
     if spec[:options].delete(:showtime) or spec[:options].delete(:T)
-      Bbs.set_multilines(true)
+      Bbs.set_inlinetime(true)
     end
 
     return ts
@@ -217,7 +217,7 @@ module Chit
 
             posts.each do |post|
               #puts render_post_chat(post)
-              puts Bbs.get_multilines ? render_post(post) : render_post_chat_time(post)
+              puts Bbs.get_multilines ? (Bbs.get_inlinetime ? render_post(post) : render_post_chat_multiline(post)) : (Bbs.get_inlinetime ? render_post_chat_time(post) : render_post_chat(post))
               start_no += 1
             end
 
