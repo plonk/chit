@@ -3,24 +3,6 @@ require 'uri'
 require 'pp' if $DEBUG
 
 module Bbs
-  @multilines = false
-  @inlinetime = false
-  attr_reader :multilines, :inlinetime
-
-  class << self
-    def get_multilines 
-      @multilines
-    end
-    def set_multilines(val)
-      @multilines = val
-    end
-    def get_inlinetime
-      @inlinetime
-    end
-    def set_inlinetime(val)
-      @inlinetime = val
-    end
-  end
 
   class NotFoundError < StandardError
   end
@@ -246,7 +228,7 @@ module Bbs
             return Board.send(:new, category, board_num)
           elsif url.to_s =~ SHITARABA_THREAD_URL_PATTERN
             category, board_num, thread_num = $1, $2.to_i, $3.to_i
-            return Board.send(:new, category, board_num)
+            return Board.send(:new, category, board_num, thread_num)
           else
             return nil
           end
@@ -276,7 +258,7 @@ module Bbs
         def from_url(url)
           if url.to_s =~ SHITARABA_THREAD_URL_PATTERN
             category, board_num, thread_num = $1, $2.to_i, $3.to_i
-            board = Board.send(:new, category, board_num)
+            board = Board.send(:new, category, board_num, thread_num)
             thread = board.thread(thread_num)
             raise 'no such thread' if thread.nil?
             return thread
@@ -328,14 +310,20 @@ module Bbs
   end # Shitaraba
 
   module Nichan
+    NICHAN_THREAD_URL_PATTERN = %r{\Ahttp://[a-zA-z\-\.]+:?\d*/test/read\.cgi/(\w+)/(\d+)($|/)}
+    NICHAN_BOARD_TOP_URL_PATTERN = %r{\Ahttp://[a-zA-z\-\.]+(?::\d+)/(\w+)/(\d+)($|/)}
+
     # 2ちゃん板
     class Board < Bbs::BoardBase
-      attr_reader :hostname, :port, :name
+      attr_reader :hostname, :port, :name, :thread_num
 
       class << self
         def from_url(url)
+          
           uri = URI.parse(url)
-          board_name = uri.path.split('/').reject(&:empty?).first
+          path = uri.path.split('/').reject(&:empty?)
+          path.delete('read.cgi') unless path.delete('test').nil?
+          board_name = path.first
           return nil if board_name.nil?
           Board.send(:new, uri.hostname, uri.port, board_name)
         end
@@ -357,8 +345,6 @@ module Bbs
         Thread.from_line(line, self)
       end
     end
-
-    NICHAN_THREAD_URL_PATTERN = %r{\Ahttp://[a-zA-z\-\.]+(?::\d+)/test/read\.cgi\/(\w+)/(\d+)($|/)}
 
     # 2ちゃんスレッド
     class Thread < ThreadBase

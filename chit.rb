@@ -11,7 +11,12 @@ require_relative 'readline-ffi'
 module Chit
   extend ReadlineFFI
   module_function
-
+  @multilines = false
+  @inlinetime = false
+  @threadmode = false
+  @last10 = false
+  attr_reader :multilines, :inlinetime, :threadmode, :last10
+  
   # スレッド指定文字列：
   #    [プロトコル]://[ホスト]/[掲示板]/[スレッドパターン]:[オプション]
   #
@@ -23,40 +28,64 @@ module Chit
   # タイトルか、あるいは、スレッド番号（スレッドが立てられた Unix Time
   # である整数）。
   #
-  # [オプション]は、以下の単語をコンマ区切りで並べたもの。
-  # * oldest (一番古くに立てられたスレッドを選択)
-  # * postable (スレッドストップになっていないスレッドを選択)
-  # * multilines (番号:名前:日付:ID 本文と複数行で表示)
+  # [オプション]は、以下の単語をコンマ区切りで並べたもの。[]は省略オプション
+  # * oldest     [O] (一番古くに立てられたスレッドを選択)
+  # * postable   [P] (スレッドストップになっていないスレッドを選択)
+  # * showtime   [S] (番号<時刻>: 本文 と時刻を追加して表示)
+  # * multilines [M] (改行を改行して複数行で表示、showtimeと同時だと所謂2chスタイル)
+  # * thread     [T] (強制スレッドモード)
+  # * last10     [L] (最新レスから10だけ表示して開始)
 
   def create_board(spec)
     case spec[:protocol]
     when :shitaraba
-      Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
+      if spec[:thread_num] == 0 || !@threadmode
+        Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
+      else
+        Bbs.create_board("http://#{spec[:host]}/bbs/read.cgi/#{spec[:board]}/#{spec[:thread_num]}")
+      end
     when :nichan
-      Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
+      if spec[:thread_num] == 0 || !@threadmode
+        Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
+      else
+        Bbs.create_board("http://#{spec[:host]}/test/read.cgi/#{spec[:board]}/#{spec[:thread_num]}")
+      end
     end
   end
 
   # スレッド指定文字列 specstr に合致する Thread のリストを返す。
   def search_threads(specstr)
     spec  = parse_thread_spec(specstr)
-    board = create_board(spec)
-    ts    = board.threads.select{ |t| t.title =~ spec[:thread_regexp] }
+    # 前に書かないといけないのやだなんとかしたい
+    if spec[:options].delete(:thread) || spec[:options].delete(:T)
+      @threadmode  = true
+    end
 
-    if spec[:options].delete(:postable) or spec[:options].delete(:P)
+    board = create_board(spec)
+    if spec[:thread_num] == 0 || !@threadmode
+      ts = board.threads.select{ |t| t.title =~ spec[:thread_regexp] }
+    else
+      ts = [board.thread(spec[:thread_num])]
+    end
+
+    if spec[:options].delete(:postable) || spec[:options].delete(:P)
       ts.select! { |t| t.last < 1000 }
     end
 
-    if spec[:options].delete(:oldest) or spec[:options].delete(:O)
+    if spec[:options].delete(:oldest) || spec[:options].delete(:O)
       ts = [ts.min_by(&:id)]
     end
 
-    if spec[:options].delete(:multilines) or spec[:options].delete(:M)
-      Bbs.set_multilines(true)
+    if spec[:options].delete(:multilines) || spec[:options].delete(:M)
+      @multilines = true
     end
     
-    if spec[:options].delete(:showtime) or spec[:options].delete(:T)
-      Bbs.set_inlinetime(true)
+    if spec[:options].delete(:showtime) || spec[:options].delete(:S)
+      @inlinetime = true
+    end
+
+    if spec[:options].delete(:last10) || spec[:options].delete(:L)
+      @last10  = true
     end
 
     return ts
@@ -108,11 +137,15 @@ module Chit
       options = $2.split(',').map(&:to_sym)
     end
 
-    host, board, thread_pattern = str.split('/',3)
+    words = str.split('/')
+    words.delete('test') unless words.delete('read.cgi').nil?
+    host, board, thread_pattern = words
+    thread_num = thread_pattern =~ /^(\d+)$/ ? $1 : 0
     {
-      protocol: :shitaraba,
+      protocol: :nichan,
       host: host,
       board: board,
+      thread_num: thread_num.to_i,
       thread_pattern: thread_pattern,
       thread_regexp: glob_to_regexp(thread_pattern),
       options: options,
@@ -130,13 +163,15 @@ module Chit
     host, = words
     fail "invalid thread spec #{str.inspect}" unless words.size==4
     fail "invalid board id #{words[1].inspect}" unless words[2] =~ /\A\d+\z/
+    thread_num = words[3] =~ /^(\d+)$/ ? $1 : 0
     {
-      protocol: :nichan,
+      protocol: :shitaraba,
       host: host.empty? ? "jbbs.shitaraba.net" : host,
       board: words[1..2].join('/'),
+      thread_num: thread_num.to_i,
       thread_pattern: words[3],
       thread_regexp: glob_to_regexp(words[3]),
-      options: options
+      options: options,
     }
   end
 
@@ -214,10 +249,19 @@ module Chit
           if posts.any?
             rl_clear_visible_line
             ReadlineFFI::CFFI.fflush(nil)
-
+            
             posts.each do |post|
               #puts render_post_chat(post)
-              puts Bbs.get_multilines ? (Bbs.get_inlinetime ? render_post(post) : render_post_chat_multiline(post)) : (Bbs.get_inlinetime ? render_post_chat_time(post) : render_post_chat(post))
+              #ここすごく冗長なので直したい
+              #case ((@multilines ? 0b01 : 0b00) | (@inlinetime ? 0b10 : 0b00))
+              puts(
+                if @multilines
+                  @inlinetime ? render_post(post) : render_post_chat_multiline(post)
+                else
+                  @inlinetime ? render_post_chat_time(post) : render_post_chat(post)
+                end
+              ) unless @last10 && start_no < t.last - 10
+              
               start_no += 1
             end
 
