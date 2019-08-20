@@ -114,7 +114,6 @@ module Bbs
     end
 
     def download_binary_nocache(uri)
-      puts uri
       response = nil
       Net::HTTP.start(uri.host, uri.port) do |http|
         request = Net::HTTP::Get.new(uri)
