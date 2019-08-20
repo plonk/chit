@@ -114,6 +114,7 @@ module Bbs
     end
 
     def download_binary_nocache(uri)
+      puts uri
       response = nil
       Net::HTTP.start(uri.host, uri.port) do |http|
         request = Net::HTTP::Get.new(uri)
@@ -310,35 +311,34 @@ module Bbs
   end # Shitaraba
 
   module Nichan
-    NICHAN_THREAD_URL_PATTERN = %r{\Ahttp://[a-zA-z\-\.]+:?\d*/test/read\.cgi/(\w+)/(\d+)($|/)}
-    NICHAN_BOARD_TOP_URL_PATTERN = %r{\Ahttp://[a-zA-z\-\.]+(?::\d+)/(\w+)/(\d+)($|/)}
+    NICHAN_THREAD_URL_PATTERN = %r{\Ahttps?://[a-zA-z\-\.]+:?\d*/test/read\.cgi/(\w+)/(\d+)($|/)}
+    NICHAN_BOARD_TOP_URL_PATTERN = %r{\Ahttps?://[a-zA-z\-\.]+(?::\d+)/(\w+)/(\d+)($|/)}
 
     # 2ちゃん板
     class Board < Bbs::BoardBase
-      attr_reader :hostname, :port, :name, :thread_num
+      attr_reader :hostname, :port, :path, :name, :thread_num
 
       class << self
         def from_url(url)
-          
           uri = URI.parse(url)
           path = uri.path.split('/').reject(&:empty?)
-          path.delete('read.cgi') unless path.delete('test').nil?
-          board_name = path.first
+          board_name = path[-1]
+          path = path[0..-2]
+          path = path.empty? ? "" : "/" + path.join("/")
           return nil if board_name.nil?
-          Board.send(:new, uri.hostname, uri.port, board_name)
+          Board.send(:new, uri.hostname, uri.port, path, board_name)
         end
       end
 
-      def initialize(hostname, port, name)
+      def initialize(hostname, port, path, name)
         super('CP932')
-        @hostname, @port, @name = hostname, port, name
-
-        @settings_url = URI.parse("http://#{hostname}:#{port}/#{name}/SETTING.TXT")
-        @thread_list_url = URI.parse("http://#{hostname}:#{port}/#{name}/subject.txt")
+        @hostname, @port, @path, @name = hostname, port, path, name
+        @settings_url = URI.parse("http://#{hostname}:#{port}#{path}/#{name}/SETTING.TXT")
+        @thread_list_url = URI.parse("http://#{hostname}:#{port}#{path}/#{name}/subject.txt")
       end
 
       def dat_url(thread_num)
-        "http://#{@hostname}:#{@port}/#{@name}/dat/#{thread_num}.dat"
+        "http://#{@hostname}:#{@port}#{@path}/#{@name}/dat/#{thread_num}.dat"
       end
 
       def create_thread_from_line(line)
@@ -351,9 +351,9 @@ module Bbs
       class << self
         def from_url(url)
           if url.to_s =~ NICHAN_THREAD_URL_PATTERN
-            board_name, thread_num = $1, $2.to_i
+            path, board_name, thread_num = $1, $2, $3.to_i
             uri = URI(url)
-            board = Board.send(:new, uri.hostname, uri.port, board_name)
+            board = Board.send(:new, uri.hostname, uri.port, path, board_name)
             thread = board.thread(thread_num)
             raise NotFoundError, 'no such thread' if thread.nil?
             return thread

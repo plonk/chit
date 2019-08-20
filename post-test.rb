@@ -41,8 +41,8 @@ def post_message(board, thread, name, mail, body)
 end
 
 def post_message_nichan(board, thread, name, mail, body)
-  uri = URI("http://#{board.hostname}:#{board.port}/test/bbs.cgi")
-  referer = "http://#{board.hostname}/#{board.name}/"
+  uri = URI("http://#{board.hostname}:#{board.port}#{board.path}/test/bbs.cgi")
+  referer = "http://#{board.hostname}#{board.path}/#{board.name}/"
 
   Net::HTTP.start(uri.host, uri.port) do |http|
     req = Net::HTTP::Post.new(uri)

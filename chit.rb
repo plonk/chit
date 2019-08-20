@@ -39,17 +39,9 @@ module Chit
   def create_board(spec)
     case spec[:protocol]
     when :shitaraba
-      if spec[:thread_num] == 0 || !@threadmode
-        Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
-      else
-        Bbs.create_board("http://#{spec[:host]}/bbs/read.cgi/#{spec[:board]}/#{spec[:thread_num]}")
-      end
+      Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
     when :nichan
-      if spec[:thread_num] == 0 || !@threadmode
-        Bbs.create_board("http://#{spec[:host]}/#{spec[:board]}/")
-      else
-        Bbs.create_board("http://#{spec[:host]}/test/read.cgi/#{spec[:board]}/#{spec[:thread_num]}")
-      end
+      Bbs.create_board("http://#{spec[:host]}#{spec[:path]}/#{spec[:board]}/")
     end
   end
 
@@ -139,11 +131,15 @@ module Chit
 
     words = str.split('/')
     words.delete('test') unless words.delete('read.cgi').nil?
-    host, board, thread_pattern = words
+    #host, board, thread_pattern = words
+    thread_pattern, board, *host = words.reverse
+    host, *path = host.reverse
+    path = [path].join("/")
     thread_num = thread_pattern =~ /^(\d+)$/ ? $1 : 0
     {
       protocol: :nichan,
       host: host,
+      path: path.empty? ? "": "/" + path,
       board: board,
       thread_num: thread_num.to_i,
       thread_pattern: thread_pattern,
