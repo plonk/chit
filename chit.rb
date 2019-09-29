@@ -15,7 +15,8 @@ module Chit
   @inlinetime = false
   @threadmode = false
   @last10 = false
-  attr_reader :multilines, :inlinetime, :threadmode, :last10
+  @proxy = ""
+  attr_reader :multilines, :inlinetime, :threadmode, :last10, :proxy
   
   # スレッド指定文字列：
   #    [プロトコル]://[ホスト]/[掲示板]/[スレッドパターン]:[オプション]
@@ -174,7 +175,7 @@ module Chit
   HISTORY_FILE = File.join(ENV['HOME'], ".config/chit/history")
 
   def main
-    unless ARGV.size == 1
+    unless ARGV.size <= 2
       STDERR.puts "Usage: chit THREAD_SPEC"
       exit 1
     end
@@ -235,7 +236,7 @@ module Chit
       if start_no > 1000
         STDERR.puts "Thread full"
         t, start_no = move_to_new_thread.()
-        rl_set_prompt("#{t.tile}> ")
+        rl_set_prompt("#{t.title}> ")
       end
 
       # 読み込み。
