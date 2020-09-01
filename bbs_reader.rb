@@ -163,7 +163,7 @@ module Bbs
     def threads
       lines = thread_list.each_line.to_a
       if lines.size >= 2
-        lines = lines[0..-2] # 最後にトップスレッドが重複している
+        lines = lines[0..-2] if lines[0] == lines[-1] # 最後にトップスレッドが重複している場合がある
       end
       lines.map do |line|
         create_thread_from_line(line)
