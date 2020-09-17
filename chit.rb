@@ -16,7 +16,8 @@ module Chit
   @threadmode = false
   @last10 = false
   @proxy = ""
-  attr_reader :multilines, :inlinetime, :threadmode, :last10, :proxy
+  @res_max = 1000
+  attr_reader :multilines, :inlinetime, :threadmode, :last10, :proxy, :res_max
   
   # スレッド指定文字列：
   #    [プロトコル]://[ホスト]/[掲示板]/[スレッドパターン]:[オプション]
@@ -36,6 +37,7 @@ module Chit
   # * multilines [M] (改行を改行して複数行で表示、showtimeと同時だと所謂2chスタイル)
   # * thread     [T] (強制スレッドモード)
   # * last10     [L] (最新レスから10だけ表示して開始)
+  # * max        [X] (レスの最大数を10000にする)
 
   def create_board(spec)
     case spec[:protocol]
@@ -61,8 +63,12 @@ module Chit
       ts = [board.thread(spec[:thread_num])]
     end
 
+    if spec[:options].delete(:max) || spec[:options].delete(:X)
+      @res_max = 10000
+    end
+
     if spec[:options].delete(:postable) || spec[:options].delete(:P)
-      ts.select! { |t| t.last < 1000 }
+      ts.select! { |t| t.last < @res_max }
     end
 
     if spec[:options].delete(:oldest) || spec[:options].delete(:O)
@@ -233,7 +239,7 @@ module Chit
     rl_callback_handler_install("#{t.title}> ", line_handler)
 
     while running
-      if start_no > 1000
+      if start_no > @res_max
         STDERR.puts "Thread full"
         t, start_no = move_to_new_thread.()
         rl_set_prompt("#{t.title}> ")

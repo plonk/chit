@@ -30,12 +30,12 @@ def indent(n, text)
 end
 
 def render_body(body, inde=true)
-  unescaped = CGI.unescapeHTML(body.gsub(/<br>/i, "\n"))
+  unescaped = CGI.unescapeHTML(body.gsub(/<br>/i, "\n").gsub(/<a href=.+>(>>\d+)<\/a>/i, '\1'))
   (inde ? indent(4, unescaped) : unescaped) + "\n"
 end
 
 def render_body_inline(body)
-  unescaped = CGI.unescapeHTML(body.gsub(/<br>/i, ""))
+  unescaped = CGI.unescapeHTML(body.gsub(/<br>/i, "").gsub(/<a href=.+>(>>\d+)<\/a>/i, '\1'))
 end
 
 # 複数行 所謂2chスタイル
