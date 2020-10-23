@@ -24,6 +24,8 @@ PeerCast Plays Urahaku の為に作ったRubyスクリプトです。
 
 __ffi__ / __colorize__ が存在しない旨のエラーメッセージが出て起動しなかった場合は (sudo)
 `gem install ffi` / `colorize` でインストールしてください。
+__ffi__ をインストールするさいにmake, ruby-devなどが必要になる可能性があります。
+`apt install make ruby-dev` など
 
 # インストール
 
