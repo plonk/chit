@@ -14,13 +14,14 @@ module Bbs
       end
     end
 
-    attr_reader :no, :name, :mail, :body, :date
+    attr_reader :no, :name, :mail, :body, :date, :id
 
-    def initialize(no, name, mail, date, body)
+    def initialize(no, name, mail, date, id, body)
       @no = no.to_i
       @name = name
       @mail = mail
       @date = date
+      @id = id
       @body = body
     end
 
@@ -30,7 +31,8 @@ module Bbs
     # end
 
     def to_s
-      [no, name, mail, date, body].join('<>')
+      #[no, name, mail, date, body].join('<>')
+      [no, name, mail, (id.nil? ? date : [date, id].join(' ID:')), body].join('<>')
     end
 
   end
@@ -161,7 +163,7 @@ module Bbs
     def threads
       lines = thread_list.each_line.to_a
       if lines.size >= 2
-        lines = lines[0..-2] # 最後にトップスレッドが重複している
+        lines = lines[0..-2] if lines[0] == lines[-1] # 最後にトップスレッドが重複している場合がある
       end
       lines.map do |line|
         create_thread_from_line(line)
@@ -226,7 +228,7 @@ module Bbs
             return Board.send(:new, category, board_num)
           elsif url.to_s =~ SHITARABA_THREAD_URL_PATTERN
             category, board_num, thread_num = $1, $2.to_i, $3.to_i
-            return Board.send(:new, category, board_num)
+            return Board.send(:new, category, board_num, thread_num)
           else
             return nil
           end
@@ -256,7 +258,7 @@ module Bbs
         def from_url(url)
           if url.to_s =~ SHITARABA_THREAD_URL_PATTERN
             category, board_num, thread_num = $1, $2.to_i, $3.to_i
-            board = Board.send(:new, category, board_num)
+            board = Board.send(:new, category, board_num, thread_num)
             thread = board.thread(thread_num)
             raise 'no such thread' if thread.nil?
             return thread
@@ -290,8 +292,9 @@ module Bbs
       private
 
       def create_post(line)
-        no, name, mail, date, body, = line.split('<>', 6)
-        Post.new(no, name, mail, date, body)
+        no, name, mail, date, body, _, id = line.split('<>', 7)
+        # data, id = data.split(' ID:')
+        Post.new(no, name, mail, date, id, body)
       end
 
       def dat_for_range(range)
@@ -307,29 +310,34 @@ module Bbs
   end # Shitaraba
 
   module Nichan
+    NICHAN_THREAD_URL_PATTERN = %r{\Ahttps?://[a-zA-z\-\.]+:?\d*/test/read\.cgi/(\w+)/(\d+)($|/)}
+    NICHAN_BOARD_TOP_URL_PATTERN = %r{\Ahttps?://[a-zA-z\-\.]+(?::\d+)/(\w+)/(\d+)($|/)}
+
     # 2ちゃん板
     class Board < Bbs::BoardBase
-      attr_reader :hostname, :port, :name
+      attr_reader :hostname, :port, :path, :name, :thread_num
 
       class << self
         def from_url(url)
           uri = URI.parse(url)
-          board_name = uri.path.split('/').reject(&:empty?).first
+          path = uri.path.split('/').reject(&:empty?)
+          board_name = path[-1]
+          path = path[0..-2]
+          path = path.empty? ? "" : "/" + path.join("/")
           return nil if board_name.nil?
-          Board.send(:new, uri.hostname, uri.port, board_name)
+          Board.send(:new, uri.hostname, uri.port, path, board_name)
         end
       end
 
-      def initialize(hostname, port, name)
+      def initialize(hostname, port, path, name)
         super('CP932')
-        @hostname, @port, @name = hostname, port, name
-
-        @settings_url = URI.parse("http://#{hostname}:#{port}/#{name}/SETTING.TXT")
-        @thread_list_url = URI.parse("http://#{hostname}:#{port}/#{name}/subject.txt")
+        @hostname, @port, @path, @name = hostname, port, path, name
+        @settings_url = URI.parse("http://#{hostname}:#{port}#{path}/#{name}/SETTING.TXT")
+        @thread_list_url = URI.parse("http://#{hostname}:#{port}#{path}/#{name}/subject.txt")
       end
 
       def dat_url(thread_num)
-        "http://#{@hostname}:#{@port}/#{@name}/dat/#{thread_num}.dat"
+        "http://#{@hostname}:#{@port}#{@path}/#{@name}/dat/#{thread_num}.dat"
       end
 
       def create_thread_from_line(line)
@@ -337,16 +345,14 @@ module Bbs
       end
     end
 
-    NICHAN_THREAD_URL_PATTERN = %r{\Ahttp://[a-zA-z\-\.]+(?::\d+)/test/read\.cgi\/(\w+)/(\d+)($|/)}
-
     # 2ちゃんスレッド
     class Thread < ThreadBase
       class << self
         def from_url(url)
           if url.to_s =~ NICHAN_THREAD_URL_PATTERN
-            board_name, thread_num = $1, $2.to_i
+            path, board_name, thread_num = $1, $2, $3.to_i
             uri = URI(url)
-            board = Board.send(:new, uri.hostname, uri.port, board_name)
+            board = Board.send(:new, uri.hostname, uri.port, path, board_name)
             thread = board.thread(thread_num)
             raise NotFoundError, 'no such thread' if thread.nil?
             return thread
@@ -377,7 +383,8 @@ module Bbs
           next unless range.include?(res_no)
 
           name, mail, date, body, title = line.chomp.split('<>', 5)
-          post = Post.new(res_no.to_s, name, mail, date, body)
+          date, id = date.split(' ID:')
+          post = Post.new(res_no.to_s, name, mail, date, id, body)
           ary << post
           @last = [post.no, last].max
         end
